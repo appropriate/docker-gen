@@ -1,0 +1,3 @@
+FROM scratch
+COPY build/docker-gen /docker-gen
+ENTRYPOINT ["/docker-gen"]

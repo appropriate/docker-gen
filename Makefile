@@ -33,6 +33,13 @@ release: dist
 	tar -cvzf docker-gen-darwin-amd64-$(TAG).tar.gz -C dist/darwin/amd64 docker-gen
 	tar -cvzf docker-gen-darwin-i386-$(TAG).tar.gz -C dist/darwin/i386 docker-gen
 
+docker:
+	docker build -f Dockerfile.build -t docker-gen:build .
+	mkdir -p build
+	docker run --rm docker-gen:build cat docker-gen > build/docker-gen
+	chmod +x build/docker-gen
+	docker build -f Dockerfile.minimal -t docker-gen .
+
 get-deps:
 	go get github.com/robfig/glock
 	glock sync -n < GLOCKFILE
