@@ -34,9 +34,10 @@ release: dist
 	tar -cvzf docker-gen-darwin-i386-$(TAG).tar.gz -C dist/darwin/i386 docker-gen
 
 docker:
-	docker build -f Dockerfile.build -t docker-gen:build .
+	docker build -t docker-gen-build .
 	mkdir -p build
-	docker run --rm docker-gen:build cat docker-gen > build/docker-gen
+	docker run --rm --entrypoint /bin/cat docker-gen-build /go/bin/docker-gen > build/docker-gen
+	docker rmi docker-gen-build
 	chmod +x build/docker-gen
 	docker build -f Dockerfile.minimal -t docker-gen .
 
