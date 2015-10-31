@@ -45,4 +45,4 @@ check-gofmt:
 	fi
 
 test:
-	go test
+	go test ./...
