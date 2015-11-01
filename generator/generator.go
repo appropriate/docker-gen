@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	docker "github.com/fsouza/go-dockerclient"
 
 	"github.com/jwilder/docker-gen/utils"
@@ -19,24 +18,12 @@ import (
 type stringslice []string
 
 var (
-	buildVersion            string
-	version                 bool
-	watch                   bool
-	notifyCmd               string
-	notifySigHUPContainerID string
-	onlyExposed             bool
-	onlyPublished           bool
-	configFiles             stringslice
-	configs                 ConfigFile
-	interval                int
-	keepBlankLines          bool
-	endpoint                string
-	tlsCert                 string
-	tlsKey                  string
-	tlsCaCert               string
-	tlsVerify               bool
-	tlsCertPath             string
-	wg                      sync.WaitGroup
+	endpoint    string
+	tlsCert     string
+	tlsKey      string
+	tlsCaCert   string
+	tlsVerify   bool
+	tlsCertPath string
 )
 
 type Event struct {
@@ -211,7 +198,7 @@ func (g *Generator) generateFromContainers() {
 		log.Printf("error listing containers: %s\n", err)
 		return
 	}
-	for _, config := range configs.Config {
+	for _, config := range g.configs.Config {
 		changed := generateFile(config, containers)
 		if !changed {
 			log.Printf("Contents of %s did not change. Skipping notification '%s'", config.Dest, config.NotifyCmd)
@@ -253,28 +240,20 @@ func sendSignalToContainer(client *docker.Client, config Config) {
 	}
 }
 
-func loadConfig(file string) error {
-	_, err := toml.DecodeFile(file, &configs)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (g *Generator) generateAtInterval() {
-	for _, config := range configs.Config {
+	for _, config := range g.configs.Config {
 
 		if config.Interval == 0 {
 			continue
 		}
 
 		log.Printf("Generating every %d seconds", config.Interval)
-		wg.Add(1)
+		g.wg.Add(1)
 		ticker := time.NewTicker(time.Duration(config.Interval) * time.Second)
 		quit := make(chan struct{})
 		configCopy := config
 		go func() {
-			defer wg.Done()
+			defer g.wg.Done()
 			for {
 				select {
 				case <-ticker.C:
@@ -297,13 +276,13 @@ func (g *Generator) generateAtInterval() {
 }
 
 func (g *Generator) generateFromEvents() {
-	configs = configs.filterWatches()
-	if len(configs.Config) == 0 {
+	g.configs = g.configs.filterWatches()
+	if len(g.configs.Config) == 0 {
 		return
 	}
 
-	wg.Add(1)
-	defer wg.Done()
+	g.wg.Add(1)
+	defer g.wg.Done()
 
 	for {
 		if g.client == nil {
