@@ -113,14 +113,14 @@ type ConfigFile struct {
 }
 
 type Generator struct {
-	endpoint string
-	client   *docker.Client
-	configs  ConfigFile
-	wg       sync.WaitGroup
+	config GeneratorConfig
+
+	client *docker.Client
+	wg     sync.WaitGroup
 }
 
-func NewGenerator(endpoint string, configs ConfigFile) (*Generator, error) {
-	generator := &Generator{endpoint: endpoint, configs: configs}
+func NewGenerator(config GeneratorConfig) (*Generator, error) {
+	generator := &Generator{config: config}
 
 	client, err := newDockerClient(endpoint)
 	if err != nil {
