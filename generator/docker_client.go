@@ -9,9 +9,6 @@ import (
 	"github.com/jwilder/docker-gen/utils"
 )
 
-type DockerContainer struct {
-}
-
 func splitDockerImage(img string) (string, string, string) {
 	index := 0
 	repository := img
