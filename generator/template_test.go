@@ -569,7 +569,7 @@ func TestJson(t *testing.T) {
 			ID: "3",
 		},
 	}
-	output, err := marshalJson(containers)
+	output, err := marshalJSON(containers)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,7 +18,6 @@ import (
 type stringslice []string
 
 var (
-	endpoint    string
 	tlsCert     string
 	tlsKey      string
 	tlsCaCert   string
@@ -114,13 +113,14 @@ type ConfigFile struct {
 }
 
 type Generator struct {
-	client  *docker.Client
-	configs ConfigFile
-	wg      sync.WaitGroup
+	endpoint string
+	client   *docker.Client
+	configs  ConfigFile
+	wg       sync.WaitGroup
 }
 
 func NewGenerator(endpoint string, configs ConfigFile) (*Generator, error) {
-	generator := &Generator{configs: configs}
+	generator := &Generator{endpoint: endpoint, configs: configs}
 
 	client, err := newDockerClient(endpoint)
 	if err != nil {
@@ -291,7 +291,7 @@ func (g *Generator) generateFromEvents() {
 	for {
 		if g.client == nil {
 			var err error
-			endpoint, err := utils.GetEndpoint()
+			endpoint, err := utils.GetEndpoint(g.endpoint)
 			if err != nil {
 				log.Printf("Bad endpoint: %s", err)
 				time.Sleep(10 * time.Second)

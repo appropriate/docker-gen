@@ -2,7 +2,6 @@ package utils
 
 import (
 	"bytes"
-	"flag"
 	"os"
 	"strings"
 	"testing"
@@ -14,7 +13,7 @@ func TestDefaultEndpoint(t *testing.T) {
 		t.Fatalf("Unable to unset DOCKER_HOST: %s", err)
 	}
 
-	endpoint, err := GetEndpoint()
+	endpoint, err := GetEndpoint("")
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
@@ -29,7 +28,7 @@ func TestDockerHostEndpoint(t *testing.T) {
 		t.Fatalf("Unable to set DOCKER_HOST: %s", err)
 	}
 
-	endpoint, err := GetEndpoint()
+	endpoint, err := GetEndpoint("")
 	if err != nil {
 		t.Fatal("%s", err)
 	}
@@ -40,31 +39,23 @@ func TestDockerHostEndpoint(t *testing.T) {
 }
 
 func TestDockerFlagEndpoint(t *testing.T) {
-
-	initFlags()
 	err := os.Setenv("DOCKER_HOST", "tcp://127.0.0.1:4243")
 	if err != nil {
 		t.Fatalf("Unable to set DOCKER_HOST: %s", err)
 	}
 
-	// flag value should override DOCKER_HOST and default value
-	err = flag.Set("endpoint", "tcp://127.0.0.1:5555")
-	if err != nil {
-		t.Fatalf("Unable to set endpoint flag: %s", err)
-	}
-
-	endpoint, err := GetEndpoint()
+	endpoint, err := GetEndpoint("tcp://127.0.0.1:5555")
 	if err != nil {
 		t.Fatal("%s", err)
 	}
+
 	if endpoint != "tcp://127.0.0.1:5555" {
 		t.Fatalf("Expected tcp://127.0.0.1:5555, got %s", endpoint)
 	}
 }
 
 func TestUnixBadFormat(t *testing.T) {
-	endpoint = "unix:/var/run/docker.sock"
-	_, err := GetEndpoint()
+	_, err := GetEndpoint("unix:/var/run/docker.sock")
 	if err == nil {
 		t.Fatal("endpoint should have failed")
 	}

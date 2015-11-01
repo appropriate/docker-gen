@@ -72,24 +72,21 @@ func ParseHost(addr string) (string, string, error) {
 	return proto, fmt.Sprintf("%s:%d", host, port), nil
 }
 
-func GetEndpoint() (string, error) {
-	defaultEndpoint := "unix:///var/run/docker.sock"
-	if os.Getenv("DOCKER_HOST") != "" {
-		defaultEndpoint = os.Getenv("DOCKER_HOST")
+func GetEndpoint(endpoint string) (string, error) {
+	if endpoint == "" {
+		if envEndpoint := os.Getenv("DOCKER_HOST"); envEndpoint != "" {
+			endpoint = envEndpoint
+		} else {
+			endpoint = "unix:///var/run/docker.sock"
+		}
 	}
 
-	/*
-		if endpoint != "" {
-			defaultEndpoint = endpoint
-		}
-	*/
-
-	_, _, err := ParseHost(defaultEndpoint)
+	_, _, err := ParseHost(endpoint)
 	if err != nil {
 		return "", err
 	}
 
-	return defaultEndpoint, nil
+	return endpoint, nil
 }
 
 // SplitKeyValueSlice takes a string slice where values are of the form

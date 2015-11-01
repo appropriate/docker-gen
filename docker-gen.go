@@ -143,7 +143,7 @@ func main() {
 			Config: []generator.Config{config}}
 	}
 
-	endpoint, err := utils.GetEndpoint()
+	endpoint, err := utils.GetEndpoint(endpoint)
 	if err != nil {
 		log.Fatalf("Bad endpoint: %s", err)
 	}
