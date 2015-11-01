@@ -112,7 +112,7 @@ func generalizedWhere(funcName string, entries interface{}, key string, test fun
 		return nil, err
 	}
 
-	selection := make([]interface{}, 0)
+	var selection []interface{}
 	for i := 0; i < entriesVal.Len(); i++ {
 		v := reflect.Indirect(entriesVal.Index(i)).Interface()
 
@@ -151,23 +151,23 @@ func whereAny(entries interface{}, key, sep string, cmp []string) (interface{}, 
 	return generalizedWhere("whereAny", entries, key, func(value interface{}) bool {
 		if value == nil {
 			return false
-		} else {
-			items := strings.Split(value.(string), sep)
-			return len(intersect(cmp, items)) > 0
 		}
+
+		items := strings.Split(value.(string), sep)
+		return len(intersect(cmp, items)) > 0
 	})
 }
 
 // selects entries based on key.  Assumes key is delimited and breaks it apart before comparing
 func whereAll(entries interface{}, key, sep string, cmp []string) (interface{}, error) {
-	req_count := len(cmp)
+	reqCount := len(cmp)
 	return generalizedWhere("whereAll", entries, key, func(value interface{}) bool {
 		if value == nil {
 			return false
-		} else {
-			items := strings.Split(value.(string), sep)
-			return len(intersect(cmp, items)) == req_count
 		}
+
+		items := strings.Split(value.(string), sep)
+		return len(intersect(cmp, items)) == reqCount
 	})
 }
 
@@ -193,7 +193,7 @@ func keys(input interface{}) (interface{}, error) {
 
 	vk := val.MapKeys()
 	k := make([]interface{}, val.Len())
-	for i, _ := range k {
+	for i := range k {
 		k[i] = vk[i].Interface()
 	}
 
@@ -246,7 +246,7 @@ func hashSha1(input string) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func marshalJson(input interface{}) (string, error) {
+func marshalJSON(input interface{}) (string, error) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	if err := enc.Encode(input); err != nil {
@@ -255,7 +255,7 @@ func marshalJson(input interface{}) (string, error) {
 	return strings.TrimSuffix(buf.String(), "\n"), nil
 }
 
-func unmarshalJson(input string) (interface{}, error) {
+func unmarshalJSON(input string) (interface{}, error) {
 	var v interface{}
 	if err := json.Unmarshal([]byte(input), &v); err != nil {
 		return nil, err
@@ -339,9 +339,9 @@ func trim(s string) string {
 func when(condition bool, trueValue, falseValue interface{}) interface{} {
 	if condition {
 		return trueValue
-	} else {
-		return falseValue
 	}
+
+	return falseValue
 }
 
 func newTemplate(name string) *template.Template {
@@ -358,13 +358,13 @@ func newTemplate(name string) *template.Template {
 		"groupByMulti":  groupByMulti,
 		"hasPrefix":     hasPrefix,
 		"hasSuffix":     hasSuffix,
-		"json":          marshalJson,
+		"json":          marshalJSON,
 		"intersect":     intersect,
 		"keys":          keys,
 		"last":          arrayLast,
 		"replace":       strings.Replace,
 		"parseBool":     strconv.ParseBool,
-		"parseJson":     unmarshalJson,
+		"parseJson":     unmarshalJSON,
 		"queryEscape":   url.QueryEscape,
 		"sha1":          hashSha1,
 		"split":         strings.Split,
@@ -408,47 +408,47 @@ func generateFile(config Config, containers Context) bool {
 		contents = buf.Bytes()
 	}
 
-	if config.Dest != "" {
-		dest, err := ioutil.TempFile(filepath.Dir(config.Dest), "docker-gen")
-		defer func() {
-			dest.Close()
-			os.Remove(dest.Name())
-		}()
-		if err != nil {
-			log.Fatalf("unable to create temp file: %s\n", err)
-		}
-
-		if n, err := dest.Write(contents); n != len(contents) || err != nil {
-			log.Fatalf("failed to write to temp file: wrote %d, exp %d, err=%v", n, len(contents), err)
-		}
-
-		oldContents := []byte{}
-		if fi, err := os.Stat(config.Dest); err == nil {
-			if err := dest.Chmod(fi.Mode()); err != nil {
-				log.Fatalf("unable to chmod temp file: %s\n", err)
-			}
-			if err := dest.Chown(int(fi.Sys().(*syscall.Stat_t).Uid), int(fi.Sys().(*syscall.Stat_t).Gid)); err != nil {
-				log.Fatalf("unable to chown temp file: %s\n", err)
-			}
-			oldContents, err = ioutil.ReadFile(config.Dest)
-			if err != nil {
-				log.Fatalf("unable to compare current file contents: %s: %s\n", config.Dest, err)
-			}
-		}
-
-		if bytes.Compare(oldContents, contents) != 0 {
-			err = os.Rename(dest.Name(), config.Dest)
-			if err != nil {
-				log.Fatalf("unable to create dest file %s: %s\n", config.Dest, err)
-			}
-			log.Printf("Generated '%s' from %d containers", config.Dest, len(filteredContainers))
-			return true
-		}
-		return false
-	} else {
+	if config.Dest == "" {
 		os.Stdout.Write(contents)
+		return true
 	}
-	return true
+
+	dest, err := ioutil.TempFile(filepath.Dir(config.Dest), "docker-gen")
+	defer func() {
+		dest.Close()
+		os.Remove(dest.Name())
+	}()
+	if err != nil {
+		log.Fatalf("unable to create temp file: %s\n", err)
+	}
+
+	if n, err := dest.Write(contents); n != len(contents) || err != nil {
+		log.Fatalf("failed to write to temp file: wrote %d, exp %d, err=%v", n, len(contents), err)
+	}
+
+	oldContents := []byte{}
+	if fi, err := os.Stat(config.Dest); err == nil {
+		if err := dest.Chmod(fi.Mode()); err != nil {
+			log.Fatalf("unable to chmod temp file: %s\n", err)
+		}
+		if err := dest.Chown(int(fi.Sys().(*syscall.Stat_t).Uid), int(fi.Sys().(*syscall.Stat_t).Gid)); err != nil {
+			log.Fatalf("unable to chown temp file: %s\n", err)
+		}
+		oldContents, err = ioutil.ReadFile(config.Dest)
+		if err != nil {
+			log.Fatalf("unable to compare current file contents: %s: %s\n", config.Dest, err)
+		}
+	}
+
+	if bytes.Compare(oldContents, contents) != 0 {
+		err = os.Rename(dest.Name(), config.Dest)
+		if err != nil {
+			log.Fatalf("unable to create dest file %s: %s\n", config.Dest, err)
+		}
+		log.Printf("Generated '%s' from %d containers", config.Dest, len(filteredContainers))
+		return true
+	}
+	return false
 }
 
 func executeTemplate(templatePath string, containers Context) []byte {

@@ -120,12 +120,16 @@ type Generator struct {
 }
 
 func NewGenerator(endpoint string, configs ConfigFile) (*Generator, error) {
+	generator := &Generator{configs: configs}
+
 	client, err := newDockerClient(endpoint)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Unable to create docker client: %s", err))
+		return nil, fmt.Errorf("Unable to create docker client: %s", err)
 	}
 
-	return &Generator{client: client, configs: configs}, nil
+	generator.client = client
+
+	return generator, nil
 }
 
 func (g *Generator) Generate() {
