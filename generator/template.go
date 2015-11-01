@@ -1,4 +1,4 @@
-package main
+package generator
 
 import (
 	"bytes"
@@ -17,6 +17,8 @@ import (
 	"strings"
 	"syscall"
 	"text/template"
+
+	"github.com/jwilder/docker-gen/utils"
 )
 
 func exists(path string) (bool, error) {
@@ -402,7 +404,7 @@ func generateFile(config Config, containers Context) bool {
 
 	if !config.KeepBlankLines {
 		buf := new(bytes.Buffer)
-		removeBlankLines(bytes.NewReader(contents), buf)
+		utils.RemoveBlankLines(bytes.NewReader(contents), buf)
 		contents = buf.Bytes()
 	}
 

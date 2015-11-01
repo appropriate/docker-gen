@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ func TestDefaultEndpoint(t *testing.T) {
 		t.Fatalf("Unable to unset DOCKER_HOST: %s", err)
 	}
 
-	endpoint, err := getEndpoint()
+	endpoint, err := GetEndpoint()
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
@@ -29,7 +29,7 @@ func TestDockerHostEndpoint(t *testing.T) {
 		t.Fatalf("Unable to set DOCKER_HOST: %s", err)
 	}
 
-	endpoint, err := getEndpoint()
+	endpoint, err := GetEndpoint()
 	if err != nil {
 		t.Fatal("%s", err)
 	}
@@ -53,7 +53,7 @@ func TestDockerFlagEndpoint(t *testing.T) {
 		t.Fatalf("Unable to set endpoint flag: %s", err)
 	}
 
-	endpoint, err := getEndpoint()
+	endpoint, err := GetEndpoint()
 	if err != nil {
 		t.Fatal("%s", err)
 	}
@@ -64,7 +64,7 @@ func TestDockerFlagEndpoint(t *testing.T) {
 
 func TestUnixBadFormat(t *testing.T) {
 	endpoint = "unix:/var/run/docker.sock"
-	_, err := getEndpoint()
+	_, err := GetEndpoint()
 	if err == nil {
 		t.Fatal("endpoint should have failed")
 	}
@@ -82,7 +82,7 @@ func TestSplitKeyValueSlice(t *testing.T) {
 	}
 
 	for _, i := range tests {
-		v := splitKeyValueSlice(i.input)
+		v := SplitKeyValueSlice(i.input)
 		if v["K"] != i.expected {
 			t.Fatalf("expected K='%s'. got '%s'", i.expected, v["K"])
 		}
@@ -138,9 +138,59 @@ func TestRemoveBlankLines(t *testing.T) {
 
 	for _, i := range tests {
 		output := new(bytes.Buffer)
-		removeBlankLines(strings.NewReader(i.input), output)
+		RemoveBlankLines(strings.NewReader(i.input), output)
 		if output.String() != i.expected {
 			t.Fatalf("expected '%v'. got '%v'", i.expected, output)
 		}
+	}
+}
+
+func TestParseHostUnix(t *testing.T) {
+	proto, addr, err := ParseHost("unix:///var/run/docker.sock")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	if proto != "unix" || addr != "/var/run/docker.sock" {
+		t.Fatal("failed to parse unix:///var/run/docker.sock")
+	}
+}
+
+func TestParseHostUnixDefault(t *testing.T) {
+	proto, addr, err := ParseHost("")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	if proto != "unix" || addr != "/var/run/docker.sock" {
+		t.Fatal("failed to parse ''")
+	}
+}
+
+func TestParseHostUnixDefaultNoPath(t *testing.T) {
+	proto, addr, err := ParseHost("unix://")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	if proto != "unix" || addr != "/var/run/docker.sock" {
+		t.Fatal("failed to parse unix://")
+	}
+}
+
+func TestParseHostTCP(t *testing.T) {
+	proto, addr, err := ParseHost("tcp://127.0.0.1:4243")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	if proto != "tcp" || addr != "127.0.0.1:4243" {
+		t.Fatal("failed to parse tcp://127.0.0.1:4243")
+	}
+}
+
+func TestParseHostTCPDefault(t *testing.T) {
+	proto, addr, err := ParseHost("tcp://:4243")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	if proto != "tcp" || addr != "127.0.0.1:4243" {
+		t.Fatal("failed to parse unix:///var/run/docker.sock")
 	}
 }

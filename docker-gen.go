@@ -1,19 +1,17 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/BurntSushi/toml"
 	docker "github.com/fsouza/go-dockerclient"
+
+	"github.com/jwilder/docker-gen/generator"
+	"github.com/jwilder/docker-gen/utils"
 )
 
 type stringslice []string
@@ -27,7 +25,7 @@ var (
 	onlyExposed             bool
 	onlyPublished           bool
 	configFiles             stringslice
-	configs                 ConfigFile
+	configs                 generator.ConfigFile
 	interval                int
 	keepBlankLines          bool
 	endpoint                string
@@ -36,58 +34,7 @@ var (
 	tlsCaCert               string
 	tlsVerify               bool
 	tlsCertPath             string
-	wg                      sync.WaitGroup
 )
-
-type Event struct {
-	ContainerID string `json:"id"`
-	Status      string `json:"status"`
-	Image       string `json:"from"`
-}
-
-type Address struct {
-	IP           string
-	IP6LinkLocal string
-	IP6Global    string
-	Port         string
-	HostPort     string
-	Proto        string
-	HostIP       string
-}
-
-type Volume struct {
-	Path      string
-	HostPath  string
-	ReadWrite bool
-}
-
-type RuntimeContainer struct {
-	ID           string
-	Addresses    []Address
-	Gateway      string
-	Name         string
-	Hostname     string
-	Image        DockerImage
-	Env          map[string]string
-	Volumes      map[string]Volume
-	Node         SwarmNode
-	Labels       map[string]string
-	IP           string
-	IP6LinkLocal string
-	IP6Global    string
-}
-
-type DockerImage struct {
-	Registry   string
-	Repository string
-	Tag        string
-}
-
-type SwarmNode struct {
-	ID      string
-	Name    string
-	Address Address
-}
 
 func (strings *stringslice) String() string {
 	return "[]"
@@ -97,66 +44,6 @@ func (strings *stringslice) Set(value string) error {
 	// TODO: Throw an error for duplicate `dest`
 	*strings = append(*strings, value)
 	return nil
-}
-
-func (i *DockerImage) String() string {
-	ret := i.Repository
-	if i.Registry != "" {
-		ret = i.Registry + "/" + i.Repository
-	}
-	if i.Tag != "" {
-		ret = ret + ":" + i.Tag
-	}
-	return ret
-}
-
-type Config struct {
-	Template         string
-	Dest             string
-	Watch            bool
-	NotifyCmd        string
-	NotifyContainers map[string]docker.Signal
-	OnlyExposed      bool
-	OnlyPublished    bool
-	Interval         int
-	KeepBlankLines   bool
-}
-
-type ConfigFile struct {
-	Config []Config
-}
-
-type Context []*RuntimeContainer
-
-func (c *Context) Env() map[string]string {
-	return splitKeyValueSlice(os.Environ())
-}
-
-func (c *ConfigFile) filterWatches() ConfigFile {
-	configWithWatches := []Config{}
-
-	for _, config := range c.Config {
-		if config.Watch {
-			configWithWatches = append(configWithWatches, config)
-		}
-	}
-	return ConfigFile{
-		Config: configWithWatches,
-	}
-}
-
-func (r *RuntimeContainer) Equals(o RuntimeContainer) bool {
-	return r.ID == o.ID && r.Image == o.Image
-}
-
-func (r *RuntimeContainer) PublishedAddresses() []Address {
-	mapped := []Address{}
-	for _, address := range r.Addresses {
-		if address.HostPort != "" {
-			mapped = append(mapped, address)
-		}
-	}
-	return mapped
 }
 
 func usage() {
@@ -181,204 +68,12 @@ Environment Variables:
 	println(`For more information, see https://github.com/jwilder/docker-gen`)
 }
 
-func tlsEnabled() bool {
-	for _, v := range []string{tlsCert, tlsCaCert, tlsKey} {
-		if e, err := pathExists(v); e && err == nil {
-			return true
-		}
-	}
-	return false
-}
-
-func NewDockerClient(endpoint string) (*docker.Client, error) {
-	if strings.HasPrefix(endpoint, "unix:") {
-		return docker.NewClient(endpoint)
-	} else if tlsVerify || tlsEnabled() {
-		if tlsVerify {
-			if e, err := pathExists(tlsCaCert); !e || err != nil {
-				return nil, errors.New("TLS verification was requested, but CA cert does not exist")
-			}
-		}
-
-		return docker.NewTLSClient(endpoint, tlsCert, tlsKey, tlsCaCert)
-	}
-	return docker.NewClient(endpoint)
-}
-
-func generateFromContainers(client *docker.Client) {
-	containers, err := getContainers(client)
-	if err != nil {
-		log.Printf("error listing containers: %s\n", err)
-		return
-	}
-	for _, config := range configs.Config {
-		changed := generateFile(config, containers)
-		if !changed {
-			log.Printf("Contents of %s did not change. Skipping notification '%s'", config.Dest, config.NotifyCmd)
-			continue
-		}
-		runNotifyCmd(config)
-		sendSignalToContainer(client, config)
-	}
-}
-
-func runNotifyCmd(config Config) {
-	if config.NotifyCmd == "" {
-		return
-	}
-
-	log.Printf("Running '%s'", config.NotifyCmd)
-	cmd := exec.Command("/bin/sh", "-c", config.NotifyCmd)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Printf("Error running notify command: %s, %s\n", config.NotifyCmd, err)
-		log.Print(string(out))
-	}
-}
-
-func sendSignalToContainer(client *docker.Client, config Config) {
-	if len(config.NotifyContainers) < 1 {
-		return
-	}
-
-	for container, signal := range config.NotifyContainers {
-		log.Printf("Sending container '%s' signal '%v'", container, signal)
-		killOpts := docker.KillContainerOptions{
-			ID:     container,
-			Signal: signal,
-		}
-		if err := client.KillContainer(killOpts); err != nil {
-			log.Printf("Error sending signal to container: %s", err)
-		}
-	}
-}
-
 func loadConfig(file string) error {
 	_, err := toml.DecodeFile(file, &configs)
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func generateAtInterval(client *docker.Client, configs ConfigFile) {
-	for _, config := range configs.Config {
-
-		if config.Interval == 0 {
-			continue
-		}
-
-		log.Printf("Generating every %d seconds", config.Interval)
-		wg.Add(1)
-		ticker := time.NewTicker(time.Duration(config.Interval) * time.Second)
-		quit := make(chan struct{})
-		configCopy := config
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case <-ticker.C:
-					containers, err := getContainers(client)
-					if err != nil {
-						log.Printf("Error listing containers: %s\n", err)
-						continue
-					}
-					// ignore changed return value. always run notify command
-					generateFile(configCopy, containers)
-					runNotifyCmd(configCopy)
-					sendSignalToContainer(client, configCopy)
-				case <-quit:
-					ticker.Stop()
-					return
-				}
-			}
-		}()
-	}
-}
-
-func generateFromEvents(client *docker.Client, configs ConfigFile) {
-	configs = configs.filterWatches()
-	if len(configs.Config) == 0 {
-		return
-	}
-
-	wg.Add(1)
-	defer wg.Done()
-
-	for {
-		if client == nil {
-			var err error
-			endpoint, err := getEndpoint()
-			if err != nil {
-				log.Printf("Bad endpoint: %s", err)
-				time.Sleep(10 * time.Second)
-				continue
-			}
-
-			client, err = NewDockerClient(endpoint)
-			if err != nil {
-				log.Printf("Unable to connect to docker daemon: %s", err)
-				time.Sleep(10 * time.Second)
-				continue
-			}
-			generateFromContainers(client)
-		}
-
-		eventChan := make(chan *docker.APIEvents, 100)
-		defer close(eventChan)
-
-		watching := false
-		for {
-
-			if client == nil {
-				break
-			}
-			err := client.Ping()
-			if err != nil {
-				log.Printf("Unable to ping docker daemon: %s", err)
-				if watching {
-					client.RemoveEventListener(eventChan)
-					watching = false
-					client = nil
-				}
-				time.Sleep(10 * time.Second)
-				break
-
-			}
-
-			if !watching {
-				err = client.AddEventListener(eventChan)
-				if err != nil && err != docker.ErrListenerAlreadyExists {
-					log.Printf("Error registering docker event listener: %s", err)
-					time.Sleep(10 * time.Second)
-					continue
-				}
-				watching = true
-				log.Println("Watching docker events")
-			}
-
-			select {
-
-			case event := <-eventChan:
-				if event == nil {
-					if watching {
-						client.RemoveEventListener(eventChan)
-						watching = false
-						client = nil
-					}
-					break
-				}
-
-				if event.Status == "start" || event.Status == "stop" || event.Status == "die" {
-					log.Printf("Received event %s for container %s", event.Status, event.ID[:12])
-					generateFromContainers(client)
-				}
-			case <-time.After(10 * time.Second):
-				// check for docker liveness
-			}
-
-		}
-	}
 }
 
 func initFlags() {
@@ -430,7 +125,7 @@ func main() {
 			}
 		}
 	} else {
-		config := Config{
+		config := generator.Config{
 			Template:         flag.Arg(0),
 			Dest:             flag.Arg(1),
 			Watch:            watch,
@@ -444,22 +139,19 @@ func main() {
 		if notifySigHUPContainerID != "" {
 			config.NotifyContainers[notifySigHUPContainerID] = docker.SIGHUP
 		}
-		configs = ConfigFile{
-			Config: []Config{config}}
+		configs = generator.ConfigFile{
+			Config: []generator.Config{config}}
 	}
 
-	endpoint, err := getEndpoint()
+	endpoint, err := utils.GetEndpoint()
 	if err != nil {
 		log.Fatalf("Bad endpoint: %s", err)
 	}
 
-	client, err := NewDockerClient(endpoint)
+	generator, err := generator.NewGenerator(endpoint, configs)
 	if err != nil {
-		log.Fatalf("Unable to create docker client: %s", err)
+		log.Fatalf("Unable to create generator: %s", err)
 	}
 
-	generateFromContainers(client)
-	generateAtInterval(client, configs)
-	generateFromEvents(client, configs)
-	wg.Wait()
+	generator.Generate()
 }
