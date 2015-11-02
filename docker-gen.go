@@ -33,7 +33,6 @@ var (
 	tlsKey                  string
 	tlsCaCert               string
 	tlsVerify               bool
-	tlsCertPath             string
 )
 
 func (strings *stringslice) String() string {

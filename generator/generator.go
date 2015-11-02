@@ -18,11 +18,10 @@ import (
 type stringslice []string
 
 var (
-	tlsCert     string
-	tlsKey      string
-	tlsCaCert   string
-	tlsVerify   bool
-	tlsCertPath string
+	tlsCert   string
+	tlsKey    string
+	tlsCaCert string
+	tlsVerify bool
 )
 
 type Event struct {

@@ -63,3 +63,7 @@ func (c *GeneratorConfig) SetTLSVerify(tlsVerify bool) error {
 
 	return nil
 }
+
+func (c *GeneratorConfig) LoadFile(path string) error {
+	return nil
+}
