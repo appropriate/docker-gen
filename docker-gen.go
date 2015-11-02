@@ -7,11 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/BurntSushi/toml"
-	docker "github.com/fsouza/go-dockerclient"
+	//"github.com/BurntSushi/toml"
+	//docker "github.com/fsouza/go-dockerclient"
 
 	"github.com/jwilder/docker-gen/generator"
-	"github.com/jwilder/docker-gen/utils"
+	//"github.com/jwilder/docker-gen/utils"
 )
 
 type stringslice []string
@@ -25,7 +25,7 @@ var (
 	onlyExposed             bool
 	onlyPublished           bool
 	configFiles             stringslice
-	configs                 generator.ConfigFile
+	//configs                 generator.ConfigFile
 	interval                int
 	keepBlankLines          bool
 	endpoint                string
@@ -67,6 +67,7 @@ Environment Variables:
 	println(`For more information, see https://github.com/jwilder/docker-gen`)
 }
 
+/*
 func loadConfig(file string) error {
 	_, err := toml.DecodeFile(file, &configs)
 	if err != nil {
@@ -74,6 +75,7 @@ func loadConfig(file string) error {
 	}
 	return nil
 }
+*/
 
 func initFlags() {
 
@@ -116,6 +118,9 @@ func main() {
 		os.Exit(1)
 	}
 
+  config := generator.NewConfig()
+
+  /*
 	if len(configFiles) > 0 {
 		for _, configFile := range configFiles {
 			err := loadConfig(configFile)
@@ -146,8 +151,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Bad endpoint: %s", err)
 	}
+  */
 
-	generator, err := generator.NewGenerator(endpoint, configs)
+	//generator, err := generator.NewGenerator(endpoint, configs)
+	generator, err := generator.NewGenerator(config)
 	if err != nil {
 		log.Fatalf("Unable to create generator: %s", err)
 	}

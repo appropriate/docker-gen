@@ -95,33 +95,17 @@ func (i *DockerImage) String() string {
 	return ret
 }
 
-type Config struct {
-	Template         string
-	Dest             string
-	Watch            bool
-	NotifyCmd        string
-	NotifyContainers map[string]docker.Signal
-	OnlyExposed      bool
-	OnlyPublished    bool
-	Interval         int
-	KeepBlankLines   bool
-}
-
-type ConfigFile struct {
-	Config []Config
-}
-
 type Generator struct {
-	config GeneratorConfig
+	config *GeneratorConfig
 
 	client *docker.Client
 	wg     sync.WaitGroup
 }
 
-func NewGenerator(config GeneratorConfig) (*Generator, error) {
+func NewGenerator(config *GeneratorConfig) (*Generator, error) {
 	generator := &Generator{config: config}
 
-	client, err := newDockerClient(endpoint)
+	client, err := newDockerClient(config.Endpoint())
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create docker client: %s", err)
 	}
@@ -144,6 +128,7 @@ func (c *Context) Env() map[string]string {
 	return utils.SplitKeyValueSlice(os.Environ())
 }
 
+/*
 func (c *ConfigFile) filterWatches() ConfigFile {
 	configWithWatches := []Config{}
 
@@ -156,6 +141,7 @@ func (c *ConfigFile) filterWatches() ConfigFile {
 		Config: configWithWatches,
 	}
 }
+*/
 
 func (r *RuntimeContainer) Equals(o RuntimeContainer) bool {
 	return r.ID == o.ID && r.Image == o.Image
@@ -201,7 +187,7 @@ func (g *Generator) generateFromContainers() {
 		log.Printf("error listing containers: %s\n", err)
 		return
 	}
-	for _, config := range g.configs.Config {
+	for _, config := range g.config.outputs {
 		changed := generateFile(config, containers)
 		if !changed {
 			log.Printf("Contents of %s did not change. Skipping notification '%s'", config.Dest, config.NotifyCmd)
@@ -212,7 +198,7 @@ func (g *Generator) generateFromContainers() {
 	}
 }
 
-func runNotifyCmd(config Config) {
+func runNotifyCmd(config OutputConfig) {
 	if config.NotifyCmd == "" {
 		return
 	}
@@ -226,7 +212,7 @@ func runNotifyCmd(config Config) {
 	}
 }
 
-func sendSignalToContainer(client *docker.Client, config Config) {
+func sendSignalToContainer(client *docker.Client, config OutputConfig) {
 	if len(config.NotifyContainers) < 1 {
 		return
 	}
@@ -244,7 +230,7 @@ func sendSignalToContainer(client *docker.Client, config Config) {
 }
 
 func (g *Generator) generateAtInterval() {
-	for _, config := range g.configs.Config {
+	for _, config := range g.config.outputs {
 
 		if config.Interval == 0 {
 			continue
@@ -279,8 +265,9 @@ func (g *Generator) generateAtInterval() {
 }
 
 func (g *Generator) generateFromEvents() {
-	g.configs = g.configs.filterWatches()
-	if len(g.configs.Config) == 0 {
+  // TODO: Should this be mutating g.config.outputs?
+	g.config.outputs = g.config.watchedOutputs()
+	if len(g.config.outputs) == 0 {
 		return
 	}
 
@@ -290,7 +277,7 @@ func (g *Generator) generateFromEvents() {
 	for {
 		if g.client == nil {
 			var err error
-			endpoint, err := utils.GetEndpoint(g.endpoint)
+			endpoint, err := utils.GetEndpoint(g.config.Endpoint())
 			if err != nil {
 				log.Printf("Bad endpoint: %s", err)
 				time.Sleep(10 * time.Second)

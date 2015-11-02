@@ -382,7 +382,7 @@ func newTemplate(name string) *template.Template {
 	return tmpl
 }
 
-func generateFile(config Config, containers Context) bool {
+func generateFile(config OutputConfig, containers Context) bool {
 	filteredContainers := Context{}
 	if config.OnlyPublished {
 		for _, container := range containers {

@@ -64,6 +64,16 @@ func (c *GeneratorConfig) SetTLSVerify(tlsVerify bool) error {
 	return nil
 }
 
-func (c *GeneratorConfig) LoadFile(path string) error {
+func (c *GeneratorConfig) LoadConfigFile(path string) error {
 	return nil
+}
+
+func (c *GeneratorConfig) watchedOutputs() outputConfigs {
+  watched := make(outputConfigs, 0)
+  for _, config := range c.outputs {
+    if config.Watch {
+      watched = append(watched, config)
+    }
+  }
+  return watched
 }
